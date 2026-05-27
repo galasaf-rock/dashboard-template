@@ -128,9 +128,14 @@ export default async function handler(req, res) {
   history.lastUpdated        = new Date().toISOString()
 
   // Save to Supabase
-  await supabase
+  const { error: upsertError } = await supabase
     .from('dashboard_history')
     .upsert({ id: 1, data: history, updated_at: new Date().toISOString() })
+
+  if (upsertError) {
+    console.error('Supabase upsert error:', upsertError)
+    return res.status(500).json({ error: 'Failed to save data', details: upsertError.message })
+  }
 
   return res.status(200).json({ ok: true, lastUpdated: history.lastUpdated })
 }
