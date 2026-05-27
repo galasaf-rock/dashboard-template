@@ -9,6 +9,7 @@ import {
   processMeetings,
   computeAtRisk,
   computeOpenDebts,
+  recomputeDebtLedger,
 } from '../lib/processors.js'
 
 export const config = { api: { bodyParser: false } }
@@ -63,11 +64,13 @@ export default async function handler(req, res) {
   let history = row?.data || {
     months: {},
     visitor_sets: {},
+    debt_by_month: {},
     debt_ledger: {},
     client_name_map: {},
     kpis: {},
     lastUpdated: null,
   }
+  if (!history.debt_by_month) history.debt_by_month = {}
 
   // Process each file type
   if (buffers.new_clients) {
@@ -91,22 +94,16 @@ export default async function handler(req, res) {
   }
 
   if (buffers.sales) {
-    const { periods, debt_updates } = processSales(buffers.sales)
+    const { periods, debt_by_period } = processSales(buffers.sales)
     for (const [period, { revenueTotal, revenuePaid }] of Object.entries(periods)) {
       if (!history.months[period]) history.months[period] = {}
       history.months[period].revenueTotal = revenueTotal
       history.months[period].revenuePaid  = revenuePaid
     }
-    for (const { customerId, name, delta } of debt_updates) {
-      if (!history.debt_ledger[customerId]) {
-        history.debt_ledger[customerId] = { name, balance: 0 }
-      }
-      history.debt_ledger[customerId].balance += delta
-      if (name) history.debt_ledger[customerId].name = name
-      if (Math.abs(history.debt_ledger[customerId].balance) < 0.01) {
-        delete history.debt_ledger[customerId]
-      }
+    for (const [period, entries] of Object.entries(debt_by_period)) {
+      history.debt_by_month[period] = entries
     }
+    history.debt_ledger = recomputeDebtLedger(history.debt_by_month)
   }
 
   if (buffers.subscriptions) {
