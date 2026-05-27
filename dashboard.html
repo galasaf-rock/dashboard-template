@@ -238,13 +238,11 @@ async function loadDashboard() {
   try {
     const res = await fetch('/api/get-data')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const js = await res.text()
-    // eslint-disable-next-line no-eval
-    eval(js)
+    const d = await res.json()
 
-    document.getElementById('last-updated').textContent = LAST_UPDATED
-    renderKPIs(openDebts, atRiskClients, expiringCards, noNextMeeting)
-    renderCharts(MONTHS, activeClients, newClients, revenueTotal, revenuePaid)
+    document.getElementById('last-updated').textContent = d.lastUpdated
+    renderKPIs(d.openDebts, d.atRiskClients, d.expiringCards, d.noNextMeeting)
+    renderCharts(d.months, d.activeClients, d.newClients, d.revenueTotal, d.revenuePaid)
   } catch (err) {
     document.getElementById('last-updated').textContent = 'שגיאה בטעינת נתונים'
     console.error('Dashboard load error:', err)

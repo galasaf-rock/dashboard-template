@@ -27,22 +27,19 @@ export default async function handler(req, res) {
     ? formatHebrewDate(new Date(history.lastUpdated))
     : 'לא ידוע'
 
-  const js = `
-var LAST_UPDATED = ${JSON.stringify(updated)};
-var MONTHS = ${JSON.stringify(labels)};
-var activeClients = ${JSON.stringify(activeClients)};
-var newClients = ${JSON.stringify(newClients)};
-var revenueTotal = ${JSON.stringify(revenueTotal)};
-var revenuePaid = ${JSON.stringify(revenuePaid)};
-var openDebts = ${JSON.stringify(kpis.openDebts    || { count: 0, total: 0, names: [] })};
-var atRiskClients = ${JSON.stringify(kpis.atRiskClients || { count: 0, names: [] })};
-var expiringCards = ${JSON.stringify(kpis.expiringCards || { count: 0, names: [] })};
-var noNextMeeting = ${JSON.stringify(kpis.noNextMeeting || { count: 0, names: [] })};
-`.trim()
-
-  res.setHeader('Content-Type', 'application/javascript')
   res.setHeader('Cache-Control', 'no-store')
-  return res.status(200).send(js)
+  return res.status(200).json({
+    lastUpdated: updated,
+    months: labels,
+    activeClients,
+    newClients,
+    revenueTotal,
+    revenuePaid,
+    openDebts:     kpis.openDebts     || { count: 0, total: 0, names: [] },
+    atRiskClients: kpis.atRiskClients || { count: 0, names: [] },
+    expiringCards: kpis.expiringCards || { count: 0, names: [] },
+    noNextMeeting: kpis.noNextMeeting || { count: 0, names: [] },
+  })
 }
 
 function formatHebrewDate(date) {
