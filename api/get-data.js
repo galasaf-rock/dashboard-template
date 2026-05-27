@@ -28,16 +28,16 @@ export default async function handler(req, res) {
     : 'לא ידוע'
 
   const js = `
-const LAST_UPDATED = ${JSON.stringify(updated)};
-const MONTHS = ${JSON.stringify(labels)};
-const activeClients = ${JSON.stringify(activeClients)};
-const newClients = ${JSON.stringify(newClients)};
-const revenueTotal = ${JSON.stringify(revenueTotal)};
-const revenuePaid = ${JSON.stringify(revenuePaid)};
-const openDebts = ${JSON.stringify(kpis.openDebts    || { count: 0, total: 0, names: [] })};
-const atRiskClients = ${JSON.stringify(kpis.atRiskClients || { count: 0, names: [] })};
-const expiringCards = ${JSON.stringify(kpis.expiringCards || { count: 0, names: [] })};
-const noNextMeeting = ${JSON.stringify(kpis.noNextMeeting || { count: 0, names: [] })};
+var LAST_UPDATED = ${JSON.stringify(updated)};
+var MONTHS = ${JSON.stringify(labels)};
+var activeClients = ${JSON.stringify(activeClients)};
+var newClients = ${JSON.stringify(newClients)};
+var revenueTotal = ${JSON.stringify(revenueTotal)};
+var revenuePaid = ${JSON.stringify(revenuePaid)};
+var openDebts = ${JSON.stringify(kpis.openDebts    || { count: 0, total: 0, names: [] })};
+var atRiskClients = ${JSON.stringify(kpis.atRiskClients || { count: 0, names: [] })};
+var expiringCards = ${JSON.stringify(kpis.expiringCards || { count: 0, names: [] })};
+var noNextMeeting = ${JSON.stringify(kpis.noNextMeeting || { count: 0, names: [] })};
 `.trim()
 
   res.setHeader('Content-Type', 'application/javascript')
