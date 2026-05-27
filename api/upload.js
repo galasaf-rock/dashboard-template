@@ -2,19 +2,25 @@ import { createClient } from '@supabase/supabase-js'
 import multiparty from 'multiparty'
 import { readFileSync } from 'fs'
 import {
-  processNewClients,
-  processActiveClients,
-  processSales,
-  processSubscriptions,
-  processMeetings,
-  computeAtRisk,
-  computeOpenDebts,
-  recomputeDebtLedger,
+  extractActiveClientRows,
+  extractNewClientRows,
+  extractSalesRows,
+  extractSubscriptionRows,
+  extractMeetingRows,
+  deriveAll,
 } from '../lib/processors.js'
 
 export const config = { api: { bodyParser: false } }
 
 const VALID_TYPES = ['new_clients', 'active_clients', 'sales', 'subscriptions', 'meetings']
+
+const EXTRACTORS = {
+  active_clients: extractActiveClientRows,
+  new_clients:    extractNewClientRows,
+  sales:          extractSalesRows,
+  subscriptions:  extractSubscriptionRows,
+  meetings:       extractMeetingRows,
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -35,7 +41,6 @@ export default async function handler(req, res) {
     })
   })
 
-  // Read all uploaded buffers into memory
   const buffers = {}
   for (const type of VALID_TYPES) {
     const fileList = files[type]
@@ -54,77 +59,37 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_ROLE_KEY,
   )
 
-  // Load existing history from Supabase
   const { data: row } = await supabase
     .from('dashboard_history')
     .select('data')
     .eq('id', 1)
     .single()
 
-  let history = row?.data || {
-    months: {},
-    visitor_sets: {},
-    debt_by_month: {},
-    debt_ledger: {},
-    client_name_map: {},
-    kpis: {},
-    lastUpdated: null,
-  }
-  if (!history.debt_by_month) history.debt_by_month = {}
+  let history = row?.data || {}
 
-  // Process each file type
-  if (buffers.new_clients) {
-    const newByPeriod = processNewClients(buffers.new_clients)
-    for (const [period, count] of Object.entries(newByPeriod)) {
-      if (!history.months[period]) history.months[period] = {}
-      history.months[period].newClients = count
-    }
+  // Initialize raw store on first upload
+  if (!history.raw) history.raw = {}
+  for (const type of VALID_TYPES) {
+    if (!history.raw[type]) history.raw[type] = {}
   }
 
-  if (buffers.active_clients) {
-    const { periods, visitor_sets } = processActiveClients(buffers.active_clients)
-    for (const [period, count] of Object.entries(periods)) {
-      if (!history.months[period]) history.months[period] = {}
-      history.months[period].activeClients = count
-    }
-    for (const [period, ids] of Object.entries(visitor_sets)) {
-      history.visitor_sets[period] = ids
-    }
-    history.client_name_map = buildClientNameMap(buffers.active_clients, history.client_name_map)
+  // Upsert incoming rows — new rows are added, existing rows are updated,
+  // rows absent from this upload are kept unchanged
+  for (const [type, buf] of Object.entries(buffers)) {
+    const incoming = EXTRACTORS[type](buf)
+    Object.assign(history.raw[type], incoming)
   }
 
-  if (buffers.sales) {
-    const { periods, debt_by_period } = processSales(buffers.sales)
-    for (const [period, { revenueTotal, revenuePaid }] of Object.entries(periods)) {
-      if (!history.months[period]) history.months[period] = {}
-      history.months[period].revenueTotal = revenueTotal
-      history.months[period].revenuePaid  = revenuePaid
-    }
-    for (const [period, entries] of Object.entries(debt_by_period)) {
-      history.debt_by_month[period] = entries
-    }
-    history.debt_ledger = recomputeDebtLedger(history.debt_by_month)
-  }
+  // Recompute all derived data from the full raw store
+  const derived        = deriveAll(history.raw)
+  history.months       = derived.months
+  history.visitor_sets = derived.visitor_sets
+  history.debt_by_month = derived.debt_by_month
+  history.debt_ledger  = derived.debt_ledger
+  history.client_name_map = derived.client_name_map
+  history.kpis         = derived.kpis
+  history.lastUpdated  = new Date().toISOString()
 
-  if (buffers.subscriptions) {
-    const { expiringCards } = processSubscriptions(buffers.subscriptions)
-    history.kpis.expiringCards = expiringCards
-  }
-
-  if (buffers.meetings) {
-    const { noNextMeeting } = processMeetings(
-      buffers.meetings,
-      buffers.active_clients || null,
-    )
-    history.kpis.noNextMeeting = noNextMeeting
-  }
-
-  // Recompute derived KPIs
-  history.kpis.openDebts     = computeOpenDebts(history.debt_ledger)
-  history.kpis.atRiskClients = computeAtRisk(history.visitor_sets, history.client_name_map)
-  history.lastUpdated        = new Date().toISOString()
-
-  // Save to Supabase
   const { error: upsertError } = await supabase
     .from('dashboard_history')
     .upsert({ id: 1, data: history, updated_at: new Date().toISOString() })
@@ -144,24 +109,10 @@ export default async function handler(req, res) {
     ok: true,
     lastUpdated: history.lastUpdated,
     debug: {
-      supabaseUrl: process.env.SUPABASE_URL ? 'set' : 'MISSING',
-      supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING',
-      dataAfterUpsert: verify?.data ? 'populated' : 'null',
-      verifyError: verifyError?.message || null,
+      supabaseUrl:      process.env.SUPABASE_URL ? 'set' : 'MISSING',
+      supabaseKey:      process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING',
+      dataAfterUpsert:  verify?.data ? 'populated' : 'null',
+      verifyError:      verifyError?.message || null,
     }
   })
-}
-
-function buildClientNameMap(buf, existing = {}) {
-  const XLSX = require('xlsx')
-  const wb = XLSX.read(buf, { type: 'buffer', cellDates: true })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: null })
-  const map = { ...existing }
-  for (const row of rows) {
-    const cid  = row['CustomerId']
-    const name = row['Name']
-    if (cid && name) map[Number(cid)] = name
-  }
-  return map
 }
