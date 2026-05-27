@@ -3,6 +3,7 @@
     "api/*.js": { "maxDuration": 30 }
   },
   "rewrites": [
-    { "source": "/upload", "destination": "/upload.html" }
+    { "source": "/upload", "destination": "/upload.html" },
+    { "source": "/", "destination": "/dashboard.html" }
   ]
 }
