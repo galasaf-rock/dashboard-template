@@ -137,7 +137,22 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to save data', details: upsertError.message })
   }
 
-  return res.status(200).json({ ok: true, lastUpdated: history.lastUpdated })
+  const { data: verify, error: verifyError } = await supabase
+    .from('dashboard_history')
+    .select('data')
+    .eq('id', 1)
+    .single()
+
+  return res.status(200).json({
+    ok: true,
+    lastUpdated: history.lastUpdated,
+    debug: {
+      supabaseUrl: process.env.SUPABASE_URL ? 'set' : 'MISSING',
+      supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING',
+      dataAfterUpsert: verify?.data ? 'populated' : 'null',
+      verifyError: verifyError?.message || null,
+    }
+  })
 }
 
 function buildClientNameMap(buf, existing = {}) {
