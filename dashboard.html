@@ -263,8 +263,7 @@ async function clearData() {
   })
 
   if (res.ok) {
-    document.getElementById('last-updated').textContent = 'הנתונים נמחקו'
-    document.getElementById('kpi-section').innerHTML = ''
+    location.reload()
   } else {
     alert('שגיאה — בדוק סיסמה')
   }
