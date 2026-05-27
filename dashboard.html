@@ -28,7 +28,10 @@
 
   <div class="flex items-baseline justify-between">
     <h1 class="text-2xl font-bold">לוח בקרה</h1>
-    <p class="text-xs text-gray-400">עודכן: <span id="last-updated">טוען...</span></p>
+    <div class="flex items-center gap-4">
+      <p class="text-xs text-gray-400">עודכן: <span id="last-updated">טוען...</span></p>
+      <button onclick="clearData()" class="text-xs text-red-400 hover:text-red-600 underline">נקה נתונים</button>
+    </div>
   </div>
 
   <!-- KPI Alert Cards -->
@@ -246,6 +249,24 @@ async function loadDashboard() {
   } catch (err) {
     document.getElementById('last-updated').textContent = 'שגיאה בטעינת נתונים'
     console.error('Dashboard load error:', err)
+  }
+}
+
+async function clearData() {
+  if (!confirm('למחוק את כל הנתונים?')) return
+  const password = prompt('סיסמה:')
+  if (!password) return
+
+  const res = await fetch('/api/clear', {
+    method: 'POST',
+    headers: { 'x-upload-password': password },
+  })
+
+  if (res.ok) {
+    document.getElementById('last-updated').textContent = 'הנתונים נמחקו'
+    document.getElementById('kpi-section').innerHTML = ''
+  } else {
+    alert('שגיאה — בדוק סיסמה')
   }
 }
 
