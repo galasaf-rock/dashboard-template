@@ -155,8 +155,7 @@
           setStatus(`שגיאה: ${json.error || 'שגיאה לא ידועה'}`, 'error')
         }
       } else {
-        const types = json.uploaded.map(u => u.type).join(', ')
-        setStatus(`הדשבורד עודכן בהצלחה! (${types})`, 'success')
+        setStatus('הדשבורד עודכן בהצלחה!', 'success')
         for (const input of inputs) input.value = ''
       }
     } catch (err) {
